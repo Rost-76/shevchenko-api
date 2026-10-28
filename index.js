@@ -8,31 +8,49 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Універсальна функція обробки логіки відмінювання
+// Мапа перекладу відмінків для повної сумісності
+const caseMap = {
+  'genitive': 'родовий',
+  'dative': 'давальний',
+  'accusative': 'знахідний',
+  'ablative': 'орудний',
+  'locative': 'місцевий',
+  'vocative': 'кличний',
+  'родовий': 'родовий',
+  'давальний': 'давальний',
+  'знахідний': 'знахідний',
+  'орудний': 'орудний',
+  'місцевий': 'місцевий',
+  'кличний': 'кличний'
+};
+
 async function handleDecline(req, res) {
   try {
-    // Зчитуємо дані як з POST body, так і з GET query параметрів
     const data = Object.keys(req.body).length > 0 ? req.body : req.query;
     const { type, text, caseName, gender } = data;
     
     if (!text) return res.json({ result: "" });
 
-    const targetCase = caseName || 'genitive';
+    // Перекладаємо англійську назву відмінка в українську для shevchenko.js
+    const inputCase = (caseName || 'genitive').toLowerCase().trim();
+    const targetCase = caseMap[inputCase] || 'родовий';
+    
     const g = gender || 'masculine';
     const t = (type || 'звання').toLowerCase().trim();
     const cleanText = text.toString().trim();
 
+    // 1. Обробка ПІБ
     if (t === 'піб' || t === 'pib') {
       const parts = cleanText.split(/\s+/);
       let input = { gender: g };
       
       if (parts.length >= 3) {
-        input.lastName = parts[0];
-        input.firstName = parts[1];
+        input.lastName = parts;
+        input.firstName = parts;
         input.middleName = parts.slice(2).join(" ");
       } else if (parts.length === 2) {
-        input.lastName = parts[0];
-        input.firstName = parts[1];
+        input.lastName = parts;
+        input.firstName = parts;
       } else {
         input.lastName = cleanText;
       }
@@ -46,11 +64,13 @@ async function handleDecline(req, res) {
       return res.json({ result: resParts.join(" ").trim() || cleanText });
     }
 
+    // 2. Обробка Звань
     if (t === 'звання' || t === 'rank') {
       const output = await shevchenko.decline({ gender: g, militaryRank: cleanText }, targetCase);
       return res.json({ result: output.militaryRank || cleanText });
     }
 
+    // 3. Обробка Посад
     if (t === 'посада' || t === 'job') {
       const output = await shevchenko.decline({ gender: g, militaryAppointment: cleanText }, targetCase);
       return res.json({ result: output.militaryAppointment || cleanText });
@@ -62,7 +82,6 @@ async function handleDecline(req, res) {
   }
 }
 
-// Приймаємо і POST, і GET на всіх можливих маршрутах хостингу Render
 app.post('/api/decline', handleDecline);
 app.get('/api/decline', handleDecline);
 app.post('/', handleDecline);
