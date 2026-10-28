@@ -2,13 +2,12 @@ const express = require('express');
 const shevchenko = require('shevchenko');
 const { militaryExtension } = require('shevchenko-ext-military');
 
-// Реєструємо військове розширення в оригінальній бібліотеці
+// Реєструємо військове розширення
 shevchenko.registerExtension(militaryExtension);
 
 const app = express();
 app.use(express.json());
 
-// Головний єдиний маршрут для відмінювання всього
 app.post('/api/decline', async (req, res) => {
   try {
     const { type, text, caseName, gender } = req.body;
@@ -16,41 +15,46 @@ app.post('/api/decline', async (req, res) => {
 
     const targetCase = caseName || 'genitive';
     const g = gender || 'masculine';
-    
-    // Формуємо структуру вхідних даних для бібліотеки shevchenko
-    let input = { gender: g };
     const t = type.toLowerCase().trim();
+    const cleanText = text.trim();
 
+    // Використовуємо універсальний метод decline, який автоматично схиляє ПІБ, Звання та Посади
     if (t === 'піб' || t === 'pib') {
-      const parts = text.trim().split(/\s+/);
-      if (parts.length === 3) {
-        input.lastName = parts[0]; input.firstName = parts[1]; input.middleName = parts[2];
+      const parts = cleanText.split(/\s+/);
+      let input = { gender: g };
+      
+      // Якщо це повне ПІБ (Прізвище Ім'я По батькові)
+      if (parts.length >= 3) {
+        input.lastName = parts[0];
+        input.firstName = parts[1];
+        input.middleName = parts.slice(2).join(" ");
       } else if (parts.length === 2) {
-        input.lastName = parts[0]; input.firstName = parts[1];
+        input.lastName = parts[0];
+        input.firstName = parts[1];
       } else {
-        input.lastName = text;
+        input.lastName = cleanText;
       }
-      const output = await shevchenko[targetCase](input);
+
+      const output = await shevchenko.decline(input, targetCase);
       let resParts = [];
       if (output.lastName) resParts.push(output.lastName);
       if (output.firstName) resParts.push(output.firstName);
       if (output.middleName) resParts.push(output.middleName);
+      
       return res.json({ result: resParts.join(" ") });
-    } 
-    
-    if (t === 'звання' || t === 'rank') {
-      input.militaryRank = text;
-      const output = await shevchenko[targetCase](input);
-      return res.json({ result: output.militaryRank });
-    } 
-    
-    if (t === 'посада' || t === 'job') {
-      input.militaryAppointment = text;
-      const output = await shevchenko[targetCase](input);
-      return res.json({ result: output.militaryAppointment });
     }
 
-    return res.status(400).json({ error: "Невірний type. Введіть 'піб', 'звання' або 'посада'" });
+    if (t === 'звання' || t === 'rank') {
+      const output = await shevchenko.decline({ gender: g, militaryRank: cleanText }, targetCase);
+      return res.json({ result: output.militaryRank || cleanText });
+    }
+
+    if (t === 'посада' || t === 'job') {
+      const output = await shevchenko.decline({ gender: g, militaryAppointment: cleanText }, targetCase);
+      return res.json({ result: output.militaryAppointment || cleanText });
+    }
+
+    return res.status(400).json({ error: "Невірний type слів" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
