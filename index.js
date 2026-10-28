@@ -18,12 +18,11 @@ app.post('/api/decline', async (req, res) => {
     const t = type.toLowerCase().trim();
     const cleanText = text.trim();
 
-    // Використовуємо універсальний метод decline, який автоматично схиляє ПІБ, Звання та Посади
+    // 1. Обробка ПІБ
     if (t === 'піб' || t === 'pib') {
       const parts = cleanText.split(/\s+/);
       let input = { gender: g };
       
-      // Якщо це повне ПІБ (Прізвище Ім'я По батькові)
       if (parts.length >= 3) {
         input.lastName = parts[0];
         input.firstName = parts[1];
@@ -44,17 +43,19 @@ app.post('/api/decline', async (req, res) => {
       return res.json({ result: resParts.join(" ") });
     }
 
+    // 2. Обробка Звань (ДОДАНО ОБОВ'ЯЗКОВИЙ AWAIT)
     if (t === 'звання' || t === 'rank') {
       const output = await shevchenko.decline({ gender: g, militaryRank: cleanText }, targetCase);
       return res.json({ result: output.militaryRank || cleanText });
     }
 
+    // 3. Обробка Посад (ДОДАНО ОБОВ'ЯЗКОВИЙ AWAIT)
     if (t === 'посада' || t === 'job') {
       const output = await shevchenko.decline({ gender: g, militaryAppointment: cleanText }, targetCase);
       return res.json({ result: output.militaryAppointment || cleanText });
     }
 
-    return res.status(400).json({ error: "Невірний type слів" });
+    return res.status(400).json({ error: "Невірний тип даних" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
