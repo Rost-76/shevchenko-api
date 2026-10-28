@@ -2,27 +2,17 @@ const express = require('express');
 const shevchenko = require('shevchenko');
 const { militaryExtension } = require('shevchenko-ext-military');
 
-// Реєструємо військове розширення
 shevchenko.registerExtension(militaryExtension);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Мапа виклику правильних методів бібліотеки shevchenko.js
 const caseMethods = {
-  'genitive': 'inGenitive',
-  'dative': 'inDative',
-  'accusative': 'inAccusative',
-  'ablative': 'inAblative',
-  'locative': 'inLocative',
-  'vocative': 'inVocative',
-  'родовий': 'inGenitive',
-  'давальний': 'inDative',
-  'знахідний': 'inAccusative',
-  'орудний': 'inAblative',
-  'місцевий': 'inLocative',
-  'кличний': 'inVocative'
+  'genitive': 'inGenitive', 'dative': 'inDative', 'accusative': 'inAccusative',
+  'ablative': 'inAblative', 'locative': 'inLocative', 'vocative': 'inVocative',
+  'родовий': 'inGenitive', 'давальний': 'inDative', 'знахідний': 'inAccusative',
+  'орудний': 'inAblative', 'місцевий': 'inLocative', 'кличний': 'inVocative'
 };
 
 async function handleDecline(req, res) {
@@ -34,12 +24,11 @@ async function handleDecline(req, res) {
 
     const inputCase = (caseName || 'genitive').toLowerCase().trim();
     const methodName = caseMethods[inputCase] || 'inGenitive';
-    
     const g = gender || 'masculine';
     const t = (type || 'звання').toLowerCase().trim();
     const cleanText = text.toString().trim();
 
-    // 1. ОФІЦІЙНА ОБРОБКА ПІБ (familyName, givenName, patronymicName)
+    // 1. ОФІЦІЙНА ОБРОБКА ПІБ (поля повинні бути STRING, а не Array!)
     if (t === 'піб' || t === 'pib') {
       const parts = cleanText.split(/\s+/);
       let input = { gender: g };
@@ -55,7 +44,6 @@ async function handleDecline(req, res) {
         input.familyName = cleanText;
       }
 
-      // Викликаємо правильний метод (наприклад, inGenitive)
       const output = await shevchenko[methodName](input);
       
       let resParts = [];
@@ -66,13 +54,13 @@ async function handleDecline(req, res) {
       return res.json({ result: resParts.join(" ").trim() || cleanText });
     }
 
-    // 2. ОФІЦІЙНА ОБРОБКА ЗВАНЬ
+    // 2. ОБРОБКА ЗВАНЬ
     if (t === 'звання' || t === 'rank') {
       const output = await shevchenko[methodName]({ gender: g, militaryRank: cleanText });
       return res.json({ result: output.militaryRank || cleanText });
     }
 
-    // 3. ОФІЦІЙНА ОБРОБКА ПОСАД
+    // 3. ОБРОБКА ПОСАД
     if (t === 'посада' || t === 'job') {
       const output = await shevchenko[methodName]({ gender: g, militaryAppointment: cleanText });
       return res.json({ result: output.militaryAppointment || cleanText });
@@ -80,7 +68,8 @@ async function handleDecline(req, res) {
 
     return res.json({ result: cleanText });
   } catch (error) {
-    return res.json({ result: (req.body.text || req.query.text || "").toString().trim() });
+    // Повертаємо текст помилки бібліотеки shevchenko назад у таблицю для діагностики!
+    return res.status(500).json({ error: error.message });
   }
 }
 
